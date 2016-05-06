@@ -1,0 +1,74 @@
+# 环境切换器
+# author:  weimengfa
+# todo 1.不能用于 websocket之类的转发
+
+# cookie ip test_ip
+# 使用cookie中test_ip值作为目标进行反向代理
+set $test_ip $remote_addr;
+if ($http_cookie ~ "nginx_test_ip=(\S+)(;.*|$)") {
+    set $test_ip $1;
+}
+# 找到顶级域
+# 为了写入的cookie能在顶级域下的跨域使用
+set $test_domain $host;
+if ($test_domain ~ "^[^.]+(\.[^.]+\.[^.]+)$") {
+    set $test_domain $1;
+}
+
+# 添加内容
+sub_filter '</html>' '</html>
+<style>
+    #subFilter{position: fixed; top: 10px; left: 10px; z-index: 2147483647; line-height: 14px; font-family: microsoft yahei; cursor: default;}
+    #subFilter a{text-decoration: none; color: #fff;}
+    #subFilter-ip{font-size: 10px; background: #000; color: #fff; opacity: .5; border-radius: 100px; padding: 0 5px;}
+    #subFilter-menu{background: #fff; color: #000; display: none; box-shadow: 0 0 5px; padding: 5px 0;}
+    #subFilter-menu form{margin: 0; }
+    #subFilter-list{margin: 0; padding: 0; font-size: 14px; list-style: none; text-align: center;}
+    #subFilter-list li{padding: 2px 5px; margin: 1px 0;}
+    #subFilter-list li.active{background-color: #FFA500; }
+    #subFilter-list li a{color: #337ab7; display: inherit;}
+    #subFilter-list li:hover a{color: #FFA500; }
+    #subFilter-list li.active a{color: #fff; cursor: default; }
+    #subFilter-input{padding: 0; border: 1px solid #000; }
+    #subFilter:hover #subFilter-menu{display: block; }
+</style>
+<div id="subFilter">
+    <span id="subFilter-ip">$test_ip <a href="javascript:document.body.removeChild(document.getElementById(\'subFilter\'))">×</a></span>
+    <div id="subFilter-menu">
+        <ul id="subFilter-list">
+            <script>
+                !function(){
+                    var curip = "$test_ip";
+                    var iplist = [
+                        {ip: "$remote_addr",name:"本机环境"},
+                        {ip: "192.168.0.118",name:"测试环境"},
+                        {ip: "120.76.65.180",name:"正式环境"},
+                    ];
+                    for(var i = 0;i<iplist.length;++i){
+                        var v = iplist[i];
+                        var ip = v.ip;
+                        if(curip==ip){
+                            document.write("<li class=\\"active\\"><a href=\\"javascript:\\">"+v.name+"</a></li>");
+                        }else{
+                            document.write("<li ><a href=\\"javascript:document.cookie=\'nginx_test_ip="+ip+";path=/;domain=$test_domain\';location.reload();\\">"+v.name+"</a></li>");
+                        }
+                    };
+                }();
+            </script>
+        </ul>
+    </div>
+</div>';
+sub_filter_once off;
+
+# 找不到可以从server下直接调用一个location的方法
+# 所以使用了/@@@/匹配一个location。黑魔法
+if ($test_ip != $remote_addr){
+    rewrite ^(.*)$ /@@@/$1 break;
+}
+location ~ /@@@/ {
+    internal;
+    rewrite ^/@@@/(.*)$ /$1 break;
+    proxy_set_header Host $host;
+    proxy_pass  $scheme://$test_ip;
+    break;
+}
