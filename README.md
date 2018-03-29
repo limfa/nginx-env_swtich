@@ -1,6 +1,9 @@
 基于Nginx的环境切换器
 ====
 
+## history
+0. 新增lua版
+
 ## 原理
 看代码
 
@@ -29,4 +32,4 @@ server {
 ![attr](./result.png)
 
 ## todo
-1.不能用于 websocket之类的转发
+~1.不能用于 websocket之类的转发~
